@@ -1,0 +1,29 @@
+#!/bin/bash
+
+if type update-alternatives 2>/dev/null >&1; then
+    # Remove previous link if it doesn't use update-alternatives
+    if [ -L '/usr/bin/mihomo-party-checkin' -a -e '/usr/bin/mihomo-party-checkin' -a "`readlink '/usr/bin/mihomo-party-checkin'`" != '/etc/alternatives/mihomo-party-checkin' ]; then
+        rm -f '/usr/bin/mihomo-party-checkin'
+    fi
+    update-alternatives --install '/usr/bin/mihomo-party-checkin' 'mihomo-party-checkin' '/opt/mihomo-party-checkin/mihomo-party-checkin' 100 || ln -sf '/opt/mihomo-party-checkin/mihomo-party-checkin' '/usr/bin/mihomo-party-checkin'
+else
+    ln -sf '/opt/mihomo-party-checkin/mihomo-party-checkin' '/usr/bin/mihomo-party-checkin'
+fi
+
+chmod 4755 '/opt/mihomo-party-checkin/chrome-sandbox' || true
+chmod +sx /opt/mihomo-party-checkin/resources/sidecar/mihomo
+chmod +sx /opt/mihomo-party-checkin/resources/sidecar/mihomo-alpha
+
+if hash update-mime-database 2>/dev/null; then
+    update-mime-database /usr/share/mime || true
+fi
+
+if hash update-desktop-database 2>/dev/null; then
+    update-desktop-database /usr/share/applications || true
+fi
+
+# 授予可执行权限
+chmod +x /opt/mihomo-party-checkin/resources/sidecar/mihomo
+chmod +x /opt/mihomo-party-checkin/resources/sidecar/mihomo-alpha
+
+exit 0

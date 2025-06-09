@@ -1,0 +1,57 @@
+# 依赖
+node_modules
+.pnp
+.pnp.js
+pnpm-lock.yaml
+
+# 构建输出
+dist
+dist-ssr
+*.local
+out
+
+
+# 测试
+coverage
+
+# 编辑器
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 日志
+/logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 环境变量
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Electron 特定
+.eslintcache
+.electron-vendors.cache.json
+
+# 应用数据
+data
+
+# mihomo
+extra
+
+# 临时文件
+.temp
+.tmp
+.cache

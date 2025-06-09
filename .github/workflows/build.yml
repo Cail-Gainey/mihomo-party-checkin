@@ -1,0 +1,242 @@
+name: Build
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号（如：v1.0.0）'
+        required: true
+        default: ''
+      release_type:
+        description: '发布类型'
+        required: true
+        default: 'stable'
+        type: choice
+        options:
+          - stable
+          - beta
+
+permissions: write-all
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+      changelog: ${{ steps.get-changelog.outputs.changelog }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get Version
+        id: get-version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Get Changelog
+        id: get-changelog
+        run: |
+          # 读取 changelog.md 内容作为发布说明
+          CHANGELOG=$(cat changelog.md)
+          # 将内容输出为变量，处理多行
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  windows:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x64
+          - ia32
+          - arm64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        run: npm install -g pnpm
+      - name: Install Dependencies
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm add @mihomo-party/sysproxy-win32-${{ matrix.arch }}-msvc
+          pnpm prepare --${{ matrix.arch }}
+      - name: Build
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
+          APP_VERSION: ${{ needs.prepare.outputs.version }}
+        run: pnpm build:win --${{ matrix.arch }}
+      - name: Add Portable Flag
+        run: |
+          New-Item -Path "PORTABLE" -ItemType File
+          Get-ChildItem dist/*portable.7z | ForEach-Object {
+            7z a $_.FullName PORTABLE
+          }
+      - name: Generate checksums
+        run: pnpm checksum setup.exe portable.7z
+      - name: List build directory
+        run: |
+          dir dist
+          dir dist\win || echo "dist\win not found"
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows ${{ matrix.arch }}
+          path: |
+            dist/win/*.sha256
+            dist/win/*setup.exe
+            dist/win/*portable.7z
+          if-no-files-found: error
+      - name: Publish Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/win/*.sha256
+            dist/win/*setup.exe
+            dist/win/*portable.7z
+          body: ${{ needs.prepare.outputs.changelog }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: ${{ github.event.inputs.release_type == 'beta' }}
+          tag_name: ${{ needs.prepare.outputs.version }}
+
+  linux:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x64
+          - arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        run: npm install -g pnpm
+      - name: Install Dependencies
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm add @mihomo-party/sysproxy-linux-${{ matrix.arch }}-gnu
+          sed -i "s/productName: Mihomo Party/productName: mihomo-party/" electron-builder.yml
+          pnpm prepare --${{ matrix.arch }}
+      - name: Build
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
+          APP_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          # 确保build/linux目录存在
+          mkdir -p build/linux
+          # 确保postinst文件存在并有执行权限
+          cp -f build/linux/postinst build/linux/postinst || echo "// 安装后脚本" > build/linux/postinst
+          chmod +x build/linux/postinst
+          pnpm build:linux --${{ matrix.arch }}
+      - name: Generate checksums
+        run: pnpm checksum .deb .rpm
+      - name: List build directory
+        run: |
+          ls -la dist
+          ls -la dist/linux || echo "dist/linux not found"
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Linux ${{ matrix.arch }}
+          path: |
+            dist/linux/*.sha256
+            dist/linux/*.deb
+            dist/linux/*.rpm
+          if-no-files-found: error
+      - name: Publish Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/linux/*.sha256
+            dist/linux/*.deb
+            dist/linux/*.rpm
+          body: ${{ needs.prepare.outputs.changelog }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: ${{ github.event.inputs.release_type == 'beta' }}
+          tag_name: ${{ needs.prepare.outputs.version }}
+
+  macos:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x64
+          - arm64
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        run: npm install -g pnpm
+      - name: Install Dependencies
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm add @mihomo-party/sysproxy-darwin-${{ matrix.arch }}
+          pnpm prepare --${{ matrix.arch }}
+      - name: Build
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          APP_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          # 确保build/pkg-scripts目录存在
+          mkdir -p build/pkg-scripts
+          # 确保postinstall文件存在并有执行权限
+          cp -f build/pkg-scripts/postinstall build/pkg-scripts/postinstall || echo "#!/bin/bash\nexit 0" > build/pkg-scripts/postinstall
+          chmod +x build/pkg-scripts/postinstall
+          pnpm build:mac --${{ matrix.arch }}
+      - name: Generate checksums
+        run: pnpm checksum .dmg
+      - name: List build directory
+        run: |
+          ls -la dist
+          ls -la dist/mac || echo "dist/mac not found"
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacOS ${{ matrix.arch }}
+          path: |
+            dist/mac/*.sha256
+            dist/mac/*.dmg
+          if-no-files-found: error
+      - name: Publish Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/mac/*.sha256
+            dist/mac/*.dmg
+          body: ${{ needs.prepare.outputs.changelog }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: ${{ github.event.inputs.release_type == 'beta' }}
+          tag_name: ${{ needs.prepare.outputs.version }}

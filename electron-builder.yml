@@ -1,0 +1,89 @@
+appId: party.mihomo.checkin
+productName: Mihomo Party Checkin
+directories:
+  buildResources: build
+  output: dist/${os}
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!aur/*'
+  - '!images/*'
+  - '!scripts/*'
+  - '!extra/*'
+  - '!tailwind.config.js'
+  - '!postcss.config.js'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+extraResources:
+  - from: './extra/files/'
+    to: 'files/'
+  - from: './extra/sidecar/'
+    to: 'sidecar/'
+protocols:
+  name: 'Mihomo Party Checkin'
+  schemes:
+    - 'clash'
+    - 'mihomo'
+    - 'mihomo-cailgainey'
+compression: maximum
+asar: true
+win:
+  target:
+    - nsis
+    - 7z
+  artifactName: ${name}-windows-${version}-${arch}-portable.${ext}
+nsis:
+  artifactName: ${name}-windows-${version}-${arch}-setup.${ext}
+  uninstallDisplayName: ${productName}
+  allowToChangeInstallationDirectory: true
+  oneClick: false
+  perMachine: true
+  createDesktopShortcut: always
+mac:
+  target:
+    - dmg
+    - zip
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    - NSCameraUsageDescription: Application requests access to the device's camera.
+    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  notarize: false
+  artifactName: ${name}-macos-${version}-${arch}.${ext}
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  strictVerify: false
+  executableName: "Mihomo Party Checkin"
+dmg:
+  title: ${productName}
+  background: build/background.png
+  window:
+    width: 540
+    height: 380
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+linux:
+  target:
+    - deb
+    - rpm
+  maintainer: Cail Gainey
+  category: Utility
+  artifactName: ${name}-linux-${version}-${arch}.${ext}
+  desktop:
+    Name: Mihomo Party Checkin
+    MimeType: 'x-scheme-handler/clash;x-scheme-handler/mihomo;x-scheme-handler/mihomo-cailgainey'
+deb:
+  afterInstall: 'build/linux/postinst'
+rpm:
+  afterInstall: 'build/linux/postinst'
+npmRebuild: false
+publish: []
