@@ -18,8 +18,6 @@
 |---------|---------|
 | ikuuu | [https://ikuuu.one](https://ikuuu.one/auth/register) |
 
-更多网站支持正在开发中...
-
 ## 特性
 
 - [x] 支持多账号管理，批量自动签到
@@ -140,4 +138,4 @@ pnpm dev
 
 ## 作者
 
-© 2024 Cail Gainey <cailgainey@foxmail.com>
+© Cail Gainey <cailgainey@foxmail.com>
