@@ -26,6 +26,7 @@ jobs:
     outputs:
       version: ${{ steps.get-version.outputs.version }}
       changelog: ${{ steps.get-changelog.outputs.changelog }}
+      version_without_v: ${{ steps.get-version.outputs.version_without_v }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,20 +37,90 @@ jobs:
         id: get-version
         run: |
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
-            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            VERSION=${GITHUB_REF#refs/tags/}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "version_without_v=${VERSION#v}" >> $GITHUB_OUTPUT
           else
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            VERSION=${{ github.event.inputs.version }}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "version_without_v=${VERSION#v}" >> $GITHUB_OUTPUT
           fi
+          
+          echo "使用版本号: ${VERSION}"
       
-      - name: Get Changelog
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Setup pnpm
+        run: npm install -g pnpm
+      
+      - name: Install Dependencies
+        run: pnpm install --no-frozen-lockfile
+      
+      - name: Extract Changelog
         id: get-changelog
         run: |
-          # 读取 changelog.md 内容作为发布说明
-          CHANGELOG=$(cat changelog.md)
+          # 获取版本号（不带v前缀）
+          VERSION="${{ steps.get-version.outputs.version_without_v }}"
+          echo "版本号: ${VERSION}"
+          
+          # 从changelog.md提取当前版本的更新日志
+          CHANGELOG_CONTENT=$(awk -v ver="## \\[${VERSION}\\]" '
+            BEGIN { in_section=0; result=""; }
+            $0 ~ ver { in_section=1; next; }
+            in_section && /^## / { in_section=0; }
+            in_section { result = result $0 "\n"; }
+            END { print result; }
+          ' changelog.md)
+          
+          # 如果提取失败，则使用整个changelog
+          if [ -z "$CHANGELOG_CONTENT" ]; then
+            echo "无法提取版本 ${VERSION} 的更新日志，使用完整changelog"
+            CHANGELOG_CONTENT=$(cat changelog.md)
+          fi
+          
+          # 输出提取的更新日志
+          echo "提取的更新日志:"
+          echo "$CHANGELOG_CONTENT"
+          
           # 将内容输出为变量，处理多行
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Update package.json version
+        run: |
+          # 获取版本号（不带v前缀）
+          VERSION="${{ steps.get-version.outputs.version_without_v }}"
+          
+          # 更新package.json中的版本号
+          sed -i "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" package.json
+          echo "已更新package.json中的版本号为 ${VERSION}"
+      
+      - name: Generate latest.yml
+        run: |
+          # 获取版本号（不带v前缀）
+          VERSION="${{ steps.get-version.outputs.version_without_v }}"
+          
+          # 创建latest.yml内容
+          cat > latest.yml << EOF
+          version: $VERSION
+          changelog: |
+            $(cat changelog.md)
+          EOF
+          
+          # 显示生成的文件内容
+          echo "生成的latest.yml内容:"
+          cat latest.yml
+      
+      - name: Upload latest.yml artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: latest-yml
+          path: latest.yml
+          if-no-files-found: error
 
   windows:
     needs: prepare
@@ -66,6 +137,16 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup pnpm
         run: npm install -g pnpm
+      - name: Update package.json version
+        run: |
+          # 获取版本号（不带v前缀）
+          $VERSION = "${{ needs.prepare.outputs.version_without_v }}"
+          
+          # 更新package.json中的版本号
+          $content = Get-Content package.json -Raw
+          $content = $content -replace '"version": ".*"', "`"version`": `"$VERSION`""
+          $content | Set-Content package.json
+          echo "已更新package.json中的版本号为 $VERSION"
       - name: Install Dependencies
         env:
           npm_config_arch: ${{ matrix.arch }}
@@ -92,6 +173,11 @@ jobs:
         run: |
           dir dist
           dir dist\win || echo "dist\win not found"
+      - name: Download latest.yml
+        uses: actions/download-artifact@v4
+        with:
+          name: latest-yml
+          path: dist/win/
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -100,6 +186,7 @@ jobs:
             dist/win/*.sha256
             dist/win/*setup.exe
             dist/win/*portable.7z
+            dist/win/latest.yml
           if-no-files-found: error
       - name: Publish Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -109,7 +196,14 @@ jobs:
             dist/win/*.sha256
             dist/win/*setup.exe
             dist/win/*portable.7z
-          body: ${{ needs.prepare.outputs.changelog }}
+            dist/win/latest.yml
+          body: |
+            ## 更新内容
+
+            ${{ needs.prepare.outputs.changelog }}
+
+            ## 下载地址
+            请在下方附件中下载对应系统和架构的安装包
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: ${{ github.event.inputs.release_type == 'beta' }}
@@ -129,6 +223,14 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup pnpm
         run: npm install -g pnpm
+      - name: Update package.json version
+        run: |
+          # 获取版本号（不带v前缀）
+          VERSION="${{ needs.prepare.outputs.version_without_v }}"
+          
+          # 更新package.json中的版本号
+          sed -i "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" package.json
+          echo "已更新package.json中的版本号为 ${VERSION}"
       - name: Install Dependencies
         env:
           npm_config_arch: ${{ matrix.arch }}
@@ -156,6 +258,11 @@ jobs:
         run: |
           ls -la dist
           ls -la dist/linux || echo "dist/linux not found"
+      - name: Download latest.yml
+        uses: actions/download-artifact@v4
+        with:
+          name: latest-yml
+          path: dist/linux/
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -164,6 +271,7 @@ jobs:
             dist/linux/*.sha256
             dist/linux/*.deb
             dist/linux/*.rpm
+            dist/linux/latest.yml
           if-no-files-found: error
       - name: Publish Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -173,7 +281,14 @@ jobs:
             dist/linux/*.sha256
             dist/linux/*.deb
             dist/linux/*.rpm
-          body: ${{ needs.prepare.outputs.changelog }}
+            dist/linux/latest.yml
+          body: |
+            ## 更新内容
+
+            ${{ needs.prepare.outputs.changelog }}
+
+            ## 下载地址
+            请在下方附件中下载对应系统和架构的安装包
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: ${{ github.event.inputs.release_type == 'beta' }}
@@ -193,6 +308,14 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup pnpm
         run: npm install -g pnpm
+      - name: Update package.json version
+        run: |
+          # 获取版本号（不带v前缀）
+          VERSION="${{ needs.prepare.outputs.version_without_v }}"
+          
+          # 更新package.json中的版本号
+          sed -i "" "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" package.json
+          echo "已更新package.json中的版本号为 ${VERSION}"
       - name: Install Dependencies
         env:
           npm_config_arch: ${{ matrix.arch }}
@@ -220,6 +343,11 @@ jobs:
         run: |
           ls -la dist
           ls -la dist/mac || echo "dist/mac not found"
+      - name: Download latest.yml
+        uses: actions/download-artifact@v4
+        with:
+          name: latest-yml
+          path: dist/mac/
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -227,6 +355,7 @@ jobs:
           path: |
             dist/mac/*.sha256
             dist/mac/*.dmg
+            dist/mac/latest.yml
           if-no-files-found: error
       - name: Publish Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -235,6 +364,7 @@ jobs:
           files: |
             dist/mac/*.sha256
             dist/mac/*.dmg
+            dist/mac/latest.yml
           body: ${{ needs.prepare.outputs.changelog }}
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false

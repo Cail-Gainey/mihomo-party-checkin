@@ -1,14 +1,19 @@
 # 更新日志
 
-本文档记录了 Mihomo Party Checkin 项目的所有重要变更。
+## [1.0.1]
 
-## [1.0.0] - 2025-06-09
+### 修复
 
-### 初始版本
+- 修复了自动更新功能的问题
+- 优化了changelog格式处理
+- 改进了版本号处理逻辑
 
-- 基本的签到功能
-- 自动签到
-- 自动导入ikuuu订阅
+## [1.0.0]
 
+### 新增
 
-© 2025 Cail Gainey <cailgainey@foxmail.com>
+- 初始版本发布
+- 自动签到功能
+- 支持多平台：Windows、macOS、Linux
+
+© Cail Gainey <cailgainey@foxmail.com>
