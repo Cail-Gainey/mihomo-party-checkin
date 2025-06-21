@@ -63,7 +63,7 @@ export async function checkUpdate(): Promise<IAppVersion | undefined> {
     const platform = getPlatformIdentifier()
     
     // 尝试获取平台特定的latest.yml
-    const url = `https://github.com/Cail-Gainey/mihomo-party-checkin/releases/latest/download/${platform}/latest.yml`
+    const url = `https://github.com/Cail-Gainey/mihomo-party-checkin/releases/latest/download/latest-${platform}.yml`
     console.log(`正在检查更新: ${url}`)
     
     const res = await axios.get(url, {

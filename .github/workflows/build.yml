@@ -69,16 +69,19 @@ jobs:
           # 从changelog.md提取当前版本的更新日志
           CHANGELOG_CONTENT=$(awk -v ver="## \\[${VERSION}\\]" '
             BEGIN { in_section=0; result=""; }
-            $0 ~ ver { in_section=1; next; }
-            in_section && /^## / { in_section=0; }
-            in_section { result = result $0 "\n"; }
+            $0 ~ ver { in_section=1; }
+            in_section && $0 ~ /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ && $0 !~ ver { in_section=0; }
+            in_section && $0 !~ ver { result = result $0 "\n"; }
             END { print result; }
           ' changelog.md)
           
-          # 如果提取失败，则使用整个changelog
+          # 去除开头的空行
+          CHANGELOG_CONTENT=$(echo "$CHANGELOG_CONTENT" | sed '/./,$!d')
+          
+          # 如果提取失败，则使用默认消息
           if [ -z "$CHANGELOG_CONTENT" ]; then
-            echo "无法提取版本 ${VERSION} 的更新日志，使用完整changelog"
-            CHANGELOG_CONTENT=$(cat changelog.md)
+            echo "无法提取版本 ${VERSION} 的更新日志，使用默认消息"
+            CHANGELOG_CONTENT="版本 ${VERSION} 发布"
           fi
           
           # 输出提取的更新日志
@@ -99,27 +102,80 @@ jobs:
           sed -i "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" package.json
           echo "已更新package.json中的版本号为 ${VERSION}"
       
-      - name: Generate latest.yml
+      - name: Generate update files
         run: |
           # 获取版本号（不带v前缀）
           VERSION="${{ steps.get-version.outputs.version_without_v }}"
           
-          # 创建latest.yml内容
-          cat > latest.yml << EOF
+          # 为不同平台创建符合Electron自动更新格式的latest-{platform}.yml文件
+          
+          # Windows平台更新文件
+          cat > latest-win.yml << EOF
           version: $VERSION
-          changelog: |
-            $(cat changelog.md)
+          files:
+            - url: mihomo-party-checkin-windows-$VERSION-x64-setup.exe
+              sha512: placeholder
+              size: 0
+              path: mihomo-party-checkin-windows-$VERSION-x64-setup.exe
+            - url: mihomo-party-checkin-windows-$VERSION-x64-portable.7z
+              sha512: placeholder
+              size: 0
+              path: mihomo-party-checkin-windows-$VERSION-x64-portable.7z
+          path: mihomo-party-checkin-windows-$VERSION-x64-setup.exe
+          sha512: placeholder
+          releaseDate: $(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+          EOF
+          
+          # macOS平台更新文件
+          cat > latest-mac.yml << EOF
+          version: $VERSION
+          files:
+            - url: mihomo-party-checkin-macos-$VERSION-arm64.dmg
+              sha512: placeholder
+              size: 0
+              path: mihomo-party-checkin-macos-$VERSION-arm64.dmg
+            - url: mihomo-party-checkin-macos-$VERSION-x64.dmg
+              sha512: placeholder
+              size: 0
+              path: mihomo-party-checkin-macos-$VERSION-x64.dmg
+          path: mihomo-party-checkin-macos-$VERSION-arm64.dmg
+          sha512: placeholder
+          releaseDate: $(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+          EOF
+          
+          # Linux平台更新文件
+          cat > latest-linux.yml << EOF
+          version: $VERSION
+          files:
+            - url: mihomo-party-checkin-linux-$VERSION-x64.deb
+              sha512: placeholder
+              size: 0
+              path: mihomo-party-checkin-linux-$VERSION-x64.deb
+            - url: mihomo-party-checkin-linux-$VERSION-arm64.deb
+              sha512: placeholder
+              size: 0
+              path: mihomo-party-checkin-linux-$VERSION-arm64.deb
+          path: mihomo-party-checkin-linux-$VERSION-x64.deb
+          sha512: placeholder
+          releaseDate: $(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
           EOF
           
           # 显示生成的文件内容
-          echo "生成的latest.yml内容:"
-          cat latest.yml
+          echo "生成的latest-win.yml内容:"
+          cat latest-win.yml
+          echo "生成的latest-mac.yml内容:"
+          cat latest-mac.yml
+          echo "生成的latest-linux.yml内容:"
+          cat latest-linux.yml
       
-      - name: Upload latest.yml artifact
+      - name: Upload update files
         uses: actions/upload-artifact@v4
         with:
           name: latest-yml
-          path: latest.yml
+          path: |
+            latest-win.yml
+            latest-mac.yml
+            latest-linux.yml
           if-no-files-found: error
 
   windows:
@@ -186,7 +242,7 @@ jobs:
             dist/win/*.sha256
             dist/win/*setup.exe
             dist/win/*portable.7z
-            dist/win/latest.yml
+            dist/win/latest-win.yml
           if-no-files-found: error
       - name: Publish Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -196,7 +252,7 @@ jobs:
             dist/win/*.sha256
             dist/win/*setup.exe
             dist/win/*portable.7z
-            dist/win/latest.yml
+            dist/win/latest-win.yml
           body: |
             ## 更新内容
 
@@ -271,7 +327,7 @@ jobs:
             dist/linux/*.sha256
             dist/linux/*.deb
             dist/linux/*.rpm
-            dist/linux/latest.yml
+            dist/linux/latest-linux.yml
           if-no-files-found: error
       - name: Publish Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -281,7 +337,7 @@ jobs:
             dist/linux/*.sha256
             dist/linux/*.deb
             dist/linux/*.rpm
-            dist/linux/latest.yml
+            dist/linux/latest-linux.yml
           body: |
             ## 更新内容
 
@@ -355,7 +411,7 @@ jobs:
           path: |
             dist/mac/*.sha256
             dist/mac/*.dmg
-            dist/mac/latest.yml
+            dist/mac/latest-mac.yml
           if-no-files-found: error
       - name: Publish Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -364,8 +420,11 @@ jobs:
           files: |
             dist/mac/*.sha256
             dist/mac/*.dmg
-            dist/mac/latest.yml
-          body: ${{ needs.prepare.outputs.changelog }}
+            dist/mac/latest-mac.yml
+          body: |
+            ## 更新内容
+
+            ${{ needs.prepare.outputs.changelog }}
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: ${{ github.event.inputs.release_type == 'beta' }}
