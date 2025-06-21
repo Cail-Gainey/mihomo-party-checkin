@@ -37,6 +37,7 @@ import MihomoIcon from './components/base/mihomo-icon'
 import { driver } from 'driver.js'
 import 'driver.js/dist/driver.css'
 import { useTranslation } from 'react-i18next'
+import { executeAutoCheckin } from './services/checkinService'
 
 let navigate: NavigateFunction
 let driverInstance: ReturnType<typeof driver> | null = null
@@ -387,6 +388,26 @@ const App: React.FC = () => {
     substore: SubStoreCard,
     checkin: CheckinCard
   }
+
+  // 应用启动时执行自动签到
+  useEffect(() => {
+    // 确保配置已加载
+    if (appConfig && appConfig.autoCheckinEnabled && appConfig.checkinConfigs && appConfig.checkinConfigs.length > 0) {
+      // 延迟几秒执行，确保程序完全启动
+      const timer = setTimeout(() => {
+        // 使用类型断言确保类型安全
+        executeAutoCheckin(appConfig.checkinConfigs as CheckinConfig[], (updatedAccounts) => {
+          // 更新签到配置
+          patchAppConfig({ checkinConfigs: updatedAccounts })
+        })
+      }, 3000)
+      
+      return () => clearTimeout(timer)
+    }
+    
+    // 添加空的清理函数，确保所有条件分支都有返回值
+    return () => {}
+  }, [appConfig?.autoCheckinEnabled, appConfig?.checkinConfigs])
 
   return (
     <div

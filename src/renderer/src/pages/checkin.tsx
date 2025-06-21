@@ -100,7 +100,11 @@ const Checkin: React.FC = () => {
         return c
       })
       
+      // 更新本地状态和配置
       await saveCheckinConfigs(updatedConfigs)
+      
+      // 强制更新本地状态，确保UI立即更新
+      setCheckinConfigs([...updatedConfigs])
       
       // 显示系统通知（除非明确禁止）
       if (!suppressNotification) {
@@ -126,7 +130,11 @@ const Checkin: React.FC = () => {
         return c
       })
       
+      // 更新本地状态和配置
       await saveCheckinConfigs(updatedConfigs)
+      
+      // 强制更新本地状态，确保UI立即更新
+      setCheckinConfigs([...updatedConfigs])
       
       // 显示系统通知（除非明确禁止）
       if (!suppressNotification) {
@@ -166,6 +174,7 @@ const Checkin: React.FC = () => {
     }
     
     const results: { email: string; status: string; success: boolean }[] = []
+    let updatedConfigs = [...checkinConfigs]
     
     for (const config of enabledConfigs) {
       try {
@@ -175,6 +184,10 @@ const Checkin: React.FC = () => {
           status: result,
           success: isCheckedInSuccessfully(result)
         })
+        
+        // 获取最新的配置状态，确保每次签到后的状态都是最新的
+        updatedConfigs = [...checkinConfigs]
+        
         // 添加延迟，避免请求过于频繁
         await new Promise(resolve => setTimeout(resolve, 2000))
       } catch (error) {
@@ -195,25 +208,11 @@ const Checkin: React.FC = () => {
       body: `共 ${results.length} 个账号，成功 ${successCount} 个，失败 ${failureCount} 个`
     })
     
+    // 强制更新本地状态，确保UI立即更新
+    setCheckinConfigs([...updatedConfigs])
+    
     if (!silent) setIsLoading(false)
   }
-
-  // 程序启动时自动签到（仅执行一次）
-  useEffect(() => {
-    // 确保配置已加载且自动签到已启用，且没有执行过
-    if (checkinConfigs.length > 0 && autoCheckinEnabled && !getAutoCheckinExecuted()) {
-      // 标记为已执行，确保只执行一次
-      setAutoCheckinExecuted(true)
-      
-      // 延迟几秒执行，确保程序完全启动
-      const timer = setTimeout(() => {
-        // 执行自动签到，不显示加载指示器，但显示每个账号的结果通知
-        performAllCheckins(true, false)
-      }, 3000)
-      
-      return () => clearTimeout(timer)
-    }
-  }, [checkinConfigs, autoCheckinEnabled])
 
   // 添加或编辑签到配置
   const handleSaveConfig = () => {

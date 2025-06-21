@@ -29,6 +29,8 @@ protocols:
     - 'mihomo-cailgainey'
 compression: maximum
 asar: true
+# 启用并行构建
+buildDependenciesFromSource: false
 win:
   target:
     - nsis
@@ -44,7 +46,6 @@ nsis:
 mac:
   target:
     - dmg
-    - zip
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
