@@ -504,11 +504,12 @@
   "checkin.title": "Check-in Management",
   "checkin.runAll": "Run All",
   "checkin.add": "Add Account",
-  "checkin.edit": "Edit Check-in",
+  "checkin.edit": "Edit Account",
   "checkin.run": "Run",
   "checkin.email": "Email",
   "checkin.password": "Password",
   "checkin.url": "URL",
+  "checkin.siteType": "Site Type",
   "checkin.lastCheckin": "Last Check-in",
   "checkin.status": "Status",
   "checkin.status.checked": "Checked-in",
@@ -520,5 +521,7 @@
   "checkin.autoSettings": "Auto Check-in Settings",
   "checkin.autoEnabled": "Enable Auto Check-in",
   "checkin.autoTime": "Check-in Time",
-  "checkin.autoDescription": "Set the time for automatic check-in, the system will automatically execute all enabled check-in tasks at the specified time"
+  "checkin.autoDescription": "Set the time for automatic check-in, the system will automatically execute all enabled check-in tasks at the specified time",
+  "checkin.register": "Register Account",
+  "checkin.registerTip": "Don't have an account? Click to register"
 }

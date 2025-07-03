@@ -5,8 +5,20 @@
  */
 
 import { notification } from '@renderer/utils/notification'
-import { isCheckedInSuccessfully, needsCheckin, performCheckin } from './ikuuuService'
+import { IkuuuAccount, isCheckedInSuccessfully, needsCheckin, performCheckin } from './ikuuuService'
 import { getAutoCheckinExecuted, setAutoCheckinExecuted } from './checkinState'
+
+/**
+ * 获取网站类型显示文本
+ * @param siteType 网站类型
+ * @returns 显示文本
+ * @author Cail Gainey <cailgainey@foxmail.com>
+ */
+export function getSiteTypeDisplay(siteType?: string): string {
+  if (!siteType || siteType === 'ikuuu') return 'ikuuu'
+  if (siteType === 'fbval2') return 'FlyingBird'
+  return siteType
+}
 
 /**
  * 执行自动签到
@@ -15,8 +27,8 @@ import { getAutoCheckinExecuted, setAutoCheckinExecuted } from './checkinState'
  * @author Cail Gainey <cailgainey@foxmail.com>
  */
 export async function executeAutoCheckin(
-  accounts: CheckinConfig[],
-  onSuccess?: (updatedAccounts: CheckinConfig[]) => void
+  accounts: IkuuuAccount[],
+  onSuccess?: (updatedAccounts: IkuuuAccount[]) => void
 ): Promise<void> {
   // 如果已经执行过，则不重复执行
   if (getAutoCheckinExecuted()) {
@@ -36,7 +48,7 @@ export async function executeAutoCheckin(
   }
   
   const results: { email: string; status: string; success: boolean }[] = []
-  const updatedAccounts: CheckinConfig[] = [...accounts]
+  const updatedAccounts: IkuuuAccount[] = [...accounts]
   
   for (const account of enabledAccounts) {
     try {
@@ -64,7 +76,7 @@ export async function executeAutoCheckin(
       
       // 显示单个账号的通知
       notification({
-        title: 'ikuuu 签到结果',
+        title: `${getSiteTypeDisplay(account.siteType)} 签到结果`,
         body: `${account.email}: ${result.message}`
       })
       
@@ -94,7 +106,7 @@ export async function executeAutoCheckin(
       
       // 显示错误通知
       notification({
-        title: 'ikuuu 签到失败',
+        title: `${getSiteTypeDisplay(account.siteType)} 签到失败`,
         body: `${account.email}: ${errorMessage}`
       })
     }
@@ -104,12 +116,14 @@ export async function executeAutoCheckin(
   const successCount = results.filter(r => r.success).length
   const failureCount = results.length - successCount
   
-  notification({
-    title: 'ikuuu 批量签到完成',
-    body: `共 ${results.length} 个账号，成功 ${successCount} 个，失败 ${failureCount} 个`
-  })
+  if (results.length > 1) {
+    notification({
+      title: '自动签到完成',
+      body: `共 ${results.length} 个账号，成功 ${successCount} 个，失败 ${failureCount} 个`
+    })
+  }
   
-  // 调用回调函数更新UI
+  // 如果有回调，执行回调更新UI
   if (onSuccess) {
     onSuccess(updatedAccounts)
   }

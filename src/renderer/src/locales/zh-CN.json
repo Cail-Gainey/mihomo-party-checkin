@@ -509,6 +509,7 @@
   "checkin.email": "邮箱",
   "checkin.password": "密码",
   "checkin.url": "网址",
+  "checkin.siteType": "网站类型",
   "checkin.enabled": "启用",
   "checkin.lastCheckin": "上次签到",
   "checkin.status": "状态",

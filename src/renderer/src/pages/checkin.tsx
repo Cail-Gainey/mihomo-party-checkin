@@ -7,7 +7,9 @@ import { notification } from '@renderer/utils/notification'
 import BasePage from '@renderer/components/base/base-page'
 import BorderSwitch from '@renderer/components/base/border-swtich'
 import { IkuuuAccount, isCheckedInSuccessfully, needsCheckin, performCheckin } from '../services/ikuuuService'
-import { getAutoCheckinExecuted, setAutoCheckinExecuted, resetAutoCheckinState } from '../services/checkinState'
+import { resetAutoCheckinState } from '../services/checkinState'
+import { getSiteTypeDisplay } from '../services/checkinService'
+import { openExternal } from '../utils/ipc'
 
 /**
  * 签到页面组件
@@ -109,7 +111,7 @@ const Checkin: React.FC = () => {
       // 显示系统通知（除非明确禁止）
       if (!suppressNotification) {
         notification({
-          title: 'ikuuu 签到结果',
+          title: `${getSiteTypeDisplay(account.siteType)} 签到结果`,
           body: `${account.email}: ${result.message}`
         })
       }
@@ -139,7 +141,7 @@ const Checkin: React.FC = () => {
       // 显示系统通知（除非明确禁止）
       if (!suppressNotification) {
         notification({
-          title: 'ikuuu 签到失败',
+          title: `${getSiteTypeDisplay(account.siteType)} 签到失败`,
           body: `${account.email}: ${errorMessage}`
         })
       }
@@ -165,7 +167,7 @@ const Checkin: React.FC = () => {
     
     if (enabledConfigs.length === 0) {
       notification({
-        title: 'ikuuu 签到',
+        title: '自动签到',
         body: '所有账号已签到或未启用'
       })
       
@@ -204,7 +206,7 @@ const Checkin: React.FC = () => {
     const failureCount = results.length - successCount
     
     notification({
-      title: 'ikuuu 批量签到完成',
+      title: '批量签到完成',
       body: `共 ${results.length} 个账号，成功 ${successCount} 个，失败 ${failureCount} 个`
     })
     
@@ -220,9 +222,18 @@ const Checkin: React.FC = () => {
       return
     }
     
-    // 确保有默认URL
-    if (!editingConfig.url) {
-      editingConfig.url = 'https://ikuuu.one'
+    // 确保有默认URL和网站类型
+    if (!editingConfig.siteType) {
+      editingConfig.siteType = 'ikuuu'
+    }
+    
+    // 根据网站类型设置URL
+    if (!editingConfig.url || editingConfig.url === '') {
+      if (editingConfig.siteType === 'ikuuu') {
+        editingConfig.url = 'https://ikuuu.one'
+      } else if (editingConfig.siteType === 'fbval2') {
+        editingConfig.url = 'https://fbval2-vas08.cc'
+      }
     }
     
     let newConfigs: IkuuuAccount[]
@@ -282,7 +293,19 @@ const Checkin: React.FC = () => {
 
   // 打开网站
   const openWebsite = (url: string) => {
-    window.electron.ipcRenderer.send('open-external', url);
+    openExternal(url).catch(error => {
+      notification({
+        title: '打开网站失败',
+        body: `无法打开 ${url}: ${error.message || error}`
+      });
+    });
+  }
+  
+  // 根据网站类型获取注册地址
+  const getRegisterUrl = (siteType?: string) => {
+    if (!siteType || siteType === 'ikuuu') return 'https://ikuuu.one/auth/register'
+    if (siteType === 'fbval2') return 'https://fbval2-vas08.cc/auth/register'
+    return 'https://ikuuu.one/auth/register'
   }
 
   return (
@@ -290,40 +313,45 @@ const Checkin: React.FC = () => {
       <div className="flex flex-col h-full">
         {/* 签到配置卡片 */}
         <Card className="flex-1 m-4">
-          <CardHeader className="flex justify-between items-center">
+          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <h2 className="text-xl font-bold">{t('checkin.title')}</h2>
-            <div className="flex gap-2 items-center">
-              <div className="flex items-center gap-2 mr-4">
-                <span>{t('checkin.autoEnabled')}</span>
+            <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto">
+              <div className="flex items-center gap-2 mr-2">
+                <span className="whitespace-nowrap">{t('checkin.autoEnabled')}</span>
                 <BorderSwitch 
                   isShowBorder={autoCheckinEnabled}
                   isSelected={autoCheckinEnabled}
                   onValueChange={(enabled) => saveAutoCheckinSettings(enabled)}
                 />
               </div>
-              <Button 
-                color="primary" 
-                isLoading={isLoading}
-                onPress={() => performAllCheckins(false, false)}
-              >
-                {t('checkin.runAll')}
-              </Button>
-              <Button 
-                color="primary" 
-                onPress={() => {
-                  setEditingConfig({ 
-                    email: '', 
-                    password: '', 
-                    url: 'https://ikuuu.one', 
-                    enabled: true 
-                  })
-                  setIsEditing(false)
-                  onOpen()
-                }}
-                startContent={<MdAdd />}
-              >
-                {t('checkin.add')}
-              </Button>
+              <div className="flex gap-2 flex-shrink-0">
+                <Button 
+                  color="primary" 
+                  isLoading={isLoading}
+                  onPress={() => performAllCheckins(false, false)}
+                  size="sm"
+                >
+                  {t('checkin.runAll')}
+                </Button>
+                <Button 
+                  color="primary" 
+                  onPress={() => {
+                    setEditingConfig({ 
+                      email: '', 
+                      password: '', 
+                      url: 'https://ikuuu.one', 
+                      enabled: true,
+                      siteType: 'ikuuu'
+                    })
+                    setIsEditing(false)
+                    onOpen()
+                  }}
+                  startContent={<MdAdd />}
+                  size="sm"
+                >
+                  {t('checkin.add')}
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <Divider />
@@ -336,6 +364,7 @@ const Checkin: React.FC = () => {
               >
                 <TableHeader>
                   <TableColumn width={160}>{t('checkin.email')}</TableColumn>
+                  <TableColumn width={100}>{t('checkin.siteType') || '网站类型'}</TableColumn>
                   <TableColumn width={140}>{t('checkin.lastCheckin')}</TableColumn>
                   <TableColumn width={70}>{t('checkin.status')}</TableColumn>
                   <TableColumn width={70}>{t('checkin.enabled')}</TableColumn>
@@ -344,20 +373,27 @@ const Checkin: React.FC = () => {
                 <TableBody emptyContent={t('checkin.noConfigs')}>
                   {checkinConfigs.map((config, index) => (
                     <TableRow key={index} className={!config.enabled ? "opacity-60" : ""}>
-                      <TableCell className="max-w-[160px] truncate">{truncateEmail(config.email)}</TableCell>
-                      <TableCell className="max-w-[140px] truncate">{config.lastCheckin || '-'}</TableCell>
                       <TableCell>
-                        <div className={`px-2 py-1 rounded-md text-center text-xs font-medium ${
-                          isCheckedInSuccessfully(config.lastStatus) 
-                            ? 'bg-success-50 text-success-600 dark:bg-success-900 dark:text-success-200' 
-                            : 'bg-warning-50 text-warning-600 dark:bg-warning-900 dark:text-warning-200'
-                        }`}>
-                          {getStatusText(config.lastStatus)}
-                        </div>
+                        <Tooltip content={config.email}>
+                          <span>{truncateEmail(config.email)}</span>
+                        </Tooltip>
                       </TableCell>
                       <TableCell>
-                        <BorderSwitch 
-                          isShowBorder={config.enabled}
+                        <Tooltip content={config.url}>
+                          <span>{getSiteTypeDisplay(config.siteType)}</span>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell>
+                        {config.lastCheckin || '-'}
+                      </TableCell>
+                      <TableCell>
+                        <span className={isCheckedInSuccessfully(config.lastStatus) ? "text-success" : "text-danger"}>
+                          {getStatusText(config.lastStatus)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          size="sm"
                           isSelected={config.enabled}
                           onValueChange={() => toggleConfigEnabled(config)}
                         />
@@ -415,10 +451,46 @@ const Checkin: React.FC = () => {
                 value={editingConfig?.password || ''}
                 onChange={(e) => setEditingConfig({ ...editingConfig!, password: e.target.value })}
               />
-              <input
-                type="hidden"
-                value={editingConfig?.url || 'https://ikuuu.one'}
-              />
+              
+              {/* 网站类型选择 */}
+              <div className="mt-2 mb-2">
+                <p className="text-sm mb-1">{t('checkin.siteType') || '网站类型'}</p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={!editingConfig?.siteType || editingConfig?.siteType === 'ikuuu' ? 'solid' : 'bordered'}
+                    color={!editingConfig?.siteType || editingConfig?.siteType === 'ikuuu' ? 'primary' : 'default'}
+                    className="flex-1"
+                    onPress={() => {
+                      const newConfig = { 
+                        ...editingConfig!, 
+                        siteType: 'ikuuu' as 'ikuuu', 
+                        url: 'https://ikuuu.one' 
+                      }
+                      setEditingConfig(newConfig)
+                    }}
+                  >
+                    ikuuu
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={editingConfig?.siteType === 'fbval2' ? 'solid' : 'bordered'}
+                    color={editingConfig?.siteType === 'fbval2' ? 'primary' : 'default'}
+                    className="flex-1"
+                    onPress={() => {
+                      const newConfig = { 
+                        ...editingConfig!, 
+                        siteType: 'fbval2' as 'fbval2', 
+                        url: 'https://fbval2-vas08.cc' 
+                      }
+                      setEditingConfig(newConfig)
+                    }}
+                  >
+                    FlyingBird
+                  </Button>
+                </div>
+              </div>
+              
               <Switch
                 isSelected={editingConfig?.enabled}
                 onValueChange={(value) => setEditingConfig({ ...editingConfig!, enabled: value })}
@@ -432,7 +504,7 @@ const Checkin: React.FC = () => {
                   variant="flat"
                   color="primary"
                   startContent={<MdOutlineOpenInNew />}
-                  onPress={() => openWebsite('https://ikuuu.one/auth/register')}
+                  onPress={() => openWebsite(getRegisterUrl(editingConfig?.siteType))}
                 >
                   {t('checkin.register')}
                 </Button>

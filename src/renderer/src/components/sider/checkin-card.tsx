@@ -31,13 +31,32 @@ const CheckinCard: React.FC<Props> = (props) => {
   const navigate = useNavigate()
   const match = location.pathname.includes('/checkin')
   const [autoCheckinEnabled, setAutoCheckinEnabled] = useState(false)
+  const [lastCheckinTime, setLastCheckinTime] = useState<string | null>(null)
   
-  // 初始化自动签到设置
+  // 初始化自动签到设置和最后签到时间
   useEffect(() => {
     if (appConfig?.autoCheckinEnabled !== undefined) {
       setAutoCheckinEnabled(appConfig.autoCheckinEnabled)
     }
-  }, [appConfig?.autoCheckinEnabled])
+    
+    // 获取最后一次签到时间
+    if (appConfig?.checkinConfigs && appConfig.checkinConfigs.length > 0) {
+      // 找出所有有效的最后签到时间
+      const lastCheckinTimes = appConfig.checkinConfigs
+        .filter(config => config.lastCheckin)
+        .map(config => new Date(config.lastCheckin!).getTime())
+      
+      // 如果有签到记录，获取最新的一条
+      if (lastCheckinTimes.length > 0) {
+        const latestTime = new Date(Math.max(...lastCheckinTimes))
+        setLastCheckinTime(latestTime.toLocaleString())
+      } else {
+        setLastCheckinTime(null)
+      }
+    } else {
+      setLastCheckinTime(null)
+    }
+  }, [appConfig?.autoCheckinEnabled, appConfig?.checkinConfigs])
   
   // 保存自动签到设置
   const saveAutoCheckinSettings = async (enabled: boolean) => {
@@ -133,12 +152,17 @@ const CheckinCard: React.FC<Props> = (props) => {
               </div>
             </div>
           </CardBody>
-          <CardFooter className="pt-1 flex justify-between items-center">
+          <CardFooter className="pt-1 flex-col items-start">
             <h3
               className={`text-md font-bold ${match ? 'text-primary-foreground' : 'text-foreground'}`}
             >
               {t('sider.cards.checkin')}
             </h3>
+            {lastCheckinTime && (
+              <p className={`text-xs mt-1 ${match ? 'text-primary-foreground/80' : 'text-foreground/60'}`}>
+                {t('checkin.lastCheckin')}: {lastCheckinTime}
+              </p>
+            )}
           </CardFooter>
         </div>
       </Card>

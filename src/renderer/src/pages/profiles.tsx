@@ -208,10 +208,12 @@ const Profiles: React.FC = () => {
 
   // 获取已保存的签到配置
   const checkinConfigs = appConfig?.checkinConfigs || []
-  // 过滤出 ikuuu 账号
+  // 过滤出可用账号
   const ikuuuAccounts = useMemo(() => {
     return checkinConfigs.filter(config => 
-      config.url.includes('ikuuu.one') || config.url.includes('ikuuu.eu')
+      config.url.includes('ikuuu.one') || 
+      config.url.includes('ikuuu.eu') ||
+      config.url.includes('fbval2-vas08.cc')
     )
   }, [checkinConfigs])
   const hasIkuuuAccounts = ikuuuAccounts.length > 0

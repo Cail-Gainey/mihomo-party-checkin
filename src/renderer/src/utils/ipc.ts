@@ -464,3 +464,13 @@ window.alert = alert
 export async function getPathForFile(file: File): Promise<string> {
   return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('getPathForFile', file))
 }
+
+/**
+ * 打开外部链接，如网站、文件等
+ * @param url 要打开的URL
+ * @returns 是否成功打开
+ * @author Cail Gainey <cailgainey@foxmail.com>
+ */
+export async function openExternal(url: string): Promise<boolean> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('open-external', url))
+}
