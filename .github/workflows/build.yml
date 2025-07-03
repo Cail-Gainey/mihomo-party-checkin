@@ -66,21 +66,37 @@ jobs:
           VERSION="${{ steps.get-version.outputs.version_without_v }}"
           echo "版本号: ${VERSION}"
           
-          # 从changelog.md提取当前版本的更新日志
-          CHANGELOG_CONTENT=$(awk -v ver="## \\[${VERSION}\\]" '
-            BEGIN { in_section=0; result=""; }
-            $0 ~ ver { in_section=1; }
-            in_section && $0 ~ /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ && $0 !~ ver { in_section=0; }
-            in_section && $0 !~ ver { result = result $0 "\n"; }
-            END { print result; }
-          ' changelog.md)
+          # 使用grep和sed提取版本内容
+          START_LINE=$(grep -n "## \\[${VERSION}\\]" changelog.md | cut -d ':' -f1)
           
-          # 去除开头的空行
-          CHANGELOG_CONTENT=$(echo "$CHANGELOG_CONTENT" | sed '/./,$!d')
+          if [ -z "$START_LINE" ]; then
+            echo "未找到带方括号的版本 ${VERSION}，尝试不带方括号的格式"
+            START_LINE=$(grep -n "## ${VERSION}" changelog.md | cut -d ':' -f1)
+          fi
           
-          # 如果提取失败，则使用默认消息
-          if [ -z "$CHANGELOG_CONTENT" ]; then
-            echo "无法提取版本 ${VERSION} 的更新日志，使用默认消息"
+          if [ -n "$START_LINE" ]; then
+            echo "找到版本起始行: $START_LINE"
+            
+            # 找到下一个版本的起始行
+            NEXT_VERSION_LINE=$(tail -n +$((START_LINE + 1)) changelog.md | grep -n "^## " | head -1 | cut -d ':' -f1)
+            
+            if [ -n "$NEXT_VERSION_LINE" ]; then
+              # 计算实际行号
+              NEXT_VERSION_LINE=$((START_LINE + NEXT_VERSION_LINE))
+              echo "找到下一个版本起始行: $NEXT_VERSION_LINE"
+              
+              # 提取内容（不包含版本标题行）
+              CHANGELOG_CONTENT=$(sed -n "$((START_LINE + 1)),$((NEXT_VERSION_LINE - 1))p" changelog.md)
+            else
+              # 如果没有下一个版本，提取到文件末尾
+              echo "未找到下一个版本，提取到文件末尾"
+              CHANGELOG_CONTENT=$(tail -n +$((START_LINE + 1)) changelog.md)
+            fi
+            
+            # 去除开头的空行和结尾的多余空行
+            CHANGELOG_CONTENT=$(echo "$CHANGELOG_CONTENT" | sed '/./,$!d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
+          else
+            echo "未找到版本 ${VERSION}，使用默认消息"
             CHANGELOG_CONTENT="版本 ${VERSION} 发布"
           fi
           
@@ -92,7 +108,6 @@ jobs:
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-      
       - name: Update package.json version
         run: |
           # 获取版本号（不带v前缀）

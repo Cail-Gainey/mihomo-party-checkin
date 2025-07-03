@@ -40,7 +40,8 @@ import useSWR from 'swr'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { notification } from '@renderer/utils/notification'
-import { getSubscription } from '../services/ikuuuService'
+import { IkuuuAccount } from '@renderer/services/ikuuuService'
+import { getSubscription, getSiteTypeDisplay } from '@renderer/services/subscriptionService'
 
 const Profiles: React.FC = () => {
   const { t } = useTranslation()
@@ -60,7 +61,7 @@ const Profiles: React.FC = () => {
   const [sortedItems, setSortedItems] = useState(items)
   const [useProxy, setUseProxy] = useState(false)
   const [subStoreImporting, setSubStoreImporting] = useState(false)
-  const [ikuuuImporting, setIkuuuImporting] = useState(false)
+  const [subscriptionImporting, setSubscriptionImporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [fileOver, setFileOver] = useState(false)
@@ -209,27 +210,27 @@ const Profiles: React.FC = () => {
   // 获取已保存的签到配置
   const checkinConfigs = appConfig?.checkinConfigs || []
   // 过滤出可用账号
-  const ikuuuAccounts = useMemo(() => {
+  const subscriptionAccounts = useMemo(() => {
     return checkinConfigs.filter(config => 
       config.url.includes('ikuuu.one') || 
       config.url.includes('ikuuu.eu') ||
       config.url.includes('fbval2-vas08.cc')
-    )
+    ) as IkuuuAccount[]
   }, [checkinConfigs])
-  const hasIkuuuAccounts = ikuuuAccounts.length > 0
+  const hasSubscriptionAccounts = subscriptionAccounts.length > 0
   
-  // 处理从 ikuuu 导入订阅
-  const handleImportFromIkuuu = async (account) => {
+  // 处理从网站导入订阅
+  const handleImportFromSubscription = async (account) => {
     // 如果没有提供账号，显示提示
     if (!account) {
       notification({
-        title: t('profiles.ikuuu.failed'),
-        body: t('profiles.ikuuu.noAccounts')
+        title: t('profiles.subscription.failed'),
+        body: t('profiles.subscription.noAccounts')
       })
       return
     }
     
-    setIkuuuImporting(true)
+    setSubscriptionImporting(true)
     
     try {
       // 获取订阅链接
@@ -239,9 +240,12 @@ const Profiles: React.FC = () => {
         throw new Error(result.message || '获取订阅链接失败')
       }
       
+      // 获取网站类型显示名称
+      const siteName = getSiteTypeDisplay(account.siteType)
+      
       // 导入订阅
       await addProfileItem({ 
-        name: `ikuuu - ${account.email}`, 
+        name: `${siteName} - ${account.email}`, 
         type: 'remote', 
         url: result.subscriptionUrl, 
         useProxy 
@@ -249,17 +253,17 @@ const Profiles: React.FC = () => {
       
       // 显示成功通知
       notification({
-        title: t('profiles.ikuuu.success'),
-        body: `成功导入 ${account.email} 的订阅`
+        title: t('profiles.subscription.success'),
+        body: `${t('profiles.subscription.successDetail')} ${account.email}`
       })
     } catch (error) {
-      console.error('导入 ikuuu 订阅失败:', error)
+      console.error('导入订阅失败:', error)
       notification({
-        title: t('profiles.ikuuu.failed'),
+        title: t('profiles.subscription.failed'),
         body: error instanceof Error ? error.message : '未知错误'
       })
     } finally {
-      setIkuuuImporting(false)
+      setSubscriptionImporting(false)
     }
   }
 
@@ -335,38 +339,43 @@ const Profiles: React.FC = () => {
             {t('profiles.import')}
           </Button>
           
-          <Tooltip content={hasIkuuuAccounts ? t('profiles.ikuuu.import') : t('profiles.ikuuu.noAccounts')}>
+          <Tooltip content={hasSubscriptionAccounts ? t('profiles.subscription.import') : t('profiles.subscription.noAccounts')}>
             <Button
               size="sm"
               color="primary"
               className="ml-2"
               isIconOnly
-              isDisabled={!hasIkuuuAccounts}
-              isLoading={ikuuuImporting}
+              isDisabled={!hasSubscriptionAccounts}
+              isLoading={subscriptionImporting}
               onPress={onOpen}
             >
               <SiIcloud className="text-lg" />
             </Button>
           </Tooltip>
           
-          {/* ikuuu 账号选择模态框 */}
+          {/* 账号选择模态框 */}
           <Modal isOpen={isOpen} onClose={onClose}>
             <ModalContent>
-              <ModalHeader>{t('profiles.ikuuu.selectAccount')}</ModalHeader>
+              <ModalHeader>{t('profiles.subscription.selectAccount')}</ModalHeader>
               <ModalBody>
                 <div className="flex flex-col gap-2">
-                  {ikuuuAccounts.map((account) => (
-                    <Button
-                      key={`${account.email}-${account.url}`}
-                      onPress={() => {
-                        handleImportFromIkuuu(account)
-                        onClose()
-                      }}
-                      variant="flat"
-                    >
-                      {account.email} ({new URL(account.url).hostname})
-                    </Button>
-                  ))}
+                  {subscriptionAccounts.map((account) => {
+                    // 获取网站类型显示名称
+                    const siteName = getSiteTypeDisplay(account.siteType)
+                    
+                    return (
+                      <Button
+                        key={`${account.email}-${account.url}`}
+                        onPress={() => {
+                          handleImportFromSubscription(account)
+                          onClose()
+                        }}
+                        variant="flat"
+                      >
+                        {account.email} ({siteName})
+                      </Button>
+                    )
+                  })}
                 </div>
               </ModalBody>
             </ModalContent>

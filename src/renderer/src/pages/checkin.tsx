@@ -8,7 +8,7 @@ import BasePage from '@renderer/components/base/base-page'
 import BorderSwitch from '@renderer/components/base/border-swtich'
 import { IkuuuAccount, isCheckedInSuccessfully, needsCheckin, performCheckin } from '../services/ikuuuService'
 import { resetAutoCheckinState } from '../services/checkinState'
-import { getSiteTypeDisplay } from '../services/checkinService'
+import { getSiteTypeDisplay } from '../services/subscriptionService'
 import { openExternal } from '../utils/ipc'
 
 /**

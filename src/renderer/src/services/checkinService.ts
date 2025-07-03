@@ -7,18 +7,7 @@
 import { notification } from '@renderer/utils/notification'
 import { IkuuuAccount, isCheckedInSuccessfully, needsCheckin, performCheckin } from './ikuuuService'
 import { getAutoCheckinExecuted, setAutoCheckinExecuted } from './checkinState'
-
-/**
- * 获取网站类型显示文本
- * @param siteType 网站类型
- * @returns 显示文本
- * @author Cail Gainey <cailgainey@foxmail.com>
- */
-export function getSiteTypeDisplay(siteType?: string): string {
-  if (!siteType || siteType === 'ikuuu') return 'ikuuu'
-  if (siteType === 'fbval2') return 'FlyingBird'
-  return siteType
-}
+import { getSiteTypeDisplay } from './subscriptionService'
 
 /**
  * 执行自动签到

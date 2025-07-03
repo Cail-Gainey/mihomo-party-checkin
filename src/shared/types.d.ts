@@ -314,6 +314,7 @@ interface CheckinConfig {
   enabled: boolean
   lastCheckin?: string
   lastStatus?: string
+  siteType?: 'ikuuu' | 'fbval2' // 网站类型：ikuuu 或 fbval2
 }
 
 interface IMihomoTunConfig {
